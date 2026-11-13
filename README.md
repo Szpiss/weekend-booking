@@ -39,7 +39,7 @@ on conflict do nothing;
 
 从 `site_admins` 删除对应 UUID 即撤销其权限，RLS 每次请求均检查成员表。不要开放成员管理写权限给网页用户。
 
-`config.js` 只包含允许公开的项目 URL 和 publishable key。绝不能放入 service_role、secret key、数据库密码或管理员密码。个人管理员邮箱和凭据不在仓库内。
+`config.js` 只包含允许公开的项目 URL 和 publishable key。绝不能放入 service_role、secret key、数据库密码或管理员密码。前端页面和配置文件不包含管理员邮箱或管理员密码。
 
 首次创建账号使用了带随机令牌与过期时间的一次性服务端初始化函数。完成后立即替换为无功能的 410 响应并恢复 JWT 校验，当前不包含令牌或账号创建逻辑；正常预约不使用此函数。
 
