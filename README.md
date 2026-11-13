@@ -14,7 +14,7 @@
 
 ## 修改活动信息
 
-编辑 `index.html` 的标题、说明与文案，样式在 `assets/styles.css`；提交到 `main` 后自动发布。所有资源使用相对路径，支持 GitHub Pages 子路径。日期为中国时区今天起一年内，人数 1–8。修改时间段或偏好的取值时，需要同步更改 HTML、JavaScript 和数据库约束；单改显示文案则无需变更数据库。
+编辑 `index.html` 的标题、说明与文案，样式在 `assets/styles.css`；更改后执行 `python3 scripts/version-assets.py` 更新资源版本号，再提交到 `main` 后自动发布。所有资源使用相对路径，支持 GitHub Pages 子路径。日期为中国时区今天起一年内，人数 1–8。修改时间段或偏好的取值时，需要同步更改 HTML、JavaScript 和数据库约束；单改显示文案则无需变更数据库。
 
 ## 数据权限
 
