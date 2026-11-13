@@ -9,6 +9,7 @@ create table public.site_admins (
 create table public.outing_reservations (
  id uuid primary key default gen_random_uuid(),
  request_id uuid not null unique,
+ selected_plans jsonb not null default '[]'::jsonb,
  plan_id text not null default 'custom' check (plan_id ~ '^[a-z][a-z0-9-]{0,39}$'),
  plan_title text not null default '自定义出游' check (char_length(btrim(plan_title)) between 1 and 80),
  budget_preference text not null default 'undecided' check (budget_preference in ('undecided','under100','100to200','over200')),
@@ -30,6 +31,21 @@ create table public.outing_reservations (
  website text not null default '' check (website = ''),
  status text not null default 'pending' check (status in ('pending','confirmed','cancelled'))
 );
+alter table public.outing_reservations
+ add constraint outing_reservations_selected_plans_check check (
+  case when jsonb_typeof(selected_plans)='array' then
+    jsonb_array_length(selected_plans)<=8
+    and octet_length(selected_plans::text)<=4096
+    and not jsonb_path_exists(selected_plans,$path$$[*] ? (
+      @.type() != "object" || !exists(@.id) || !exists(@.title) ||
+      @.id.type() != "string" || @.title.type() != "string" ||
+      !(@.id like_regex "^[a-z][a-z0-9-]{0,39}$") ||
+      !(@.title like_regex "^.{1,80}$" flag "s") ||
+      !(@.title like_regex "[^[:space:]]")
+    )$path$)
+  else false end
+ );
+
 create index outing_reservations_created_idx on public.outing_reservations(created_at desc,id desc);
 create index outing_reservations_date_status_idx on public.outing_reservations(outing_date,status);
 create index outing_reservations_contact_created_idx on public.outing_reservations(lower(contact),created_at desc);
@@ -77,7 +93,7 @@ grant select on public.site_admins to authenticated;
 grant select on public.outing_reservations to authenticated;
 grant update(status) on public.outing_reservations to authenticated;
 grant insert(request_id,nickname,contact_method,contact,destination,outing_date,time_slot,
- guest_count,mood,message,consent,website,plan_id,plan_title,budget_preference,transport,company_preference,invitation_response) on public.outing_reservations to anon;
+ guest_count,mood,message,consent,website,plan_id,plan_title,budget_preference,transport,company_preference,invitation_response,selected_plans) on public.outing_reservations to anon;
 create policy read_my_admin_row on public.site_admins for select to authenticated
  using (user_id=(select auth.uid()));
 create policy visitors_may_submit_only on public.outing_reservations for insert to anon

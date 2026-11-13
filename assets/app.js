@@ -2,6 +2,9 @@
   'use strict';
   const plans = window.WEEKEND_CATALOG || [];
   const labels = window.WEEKEND_LABELS;
+  const selection=window.WeekendPlanSelection;
+  let selectedPlans=[];
+  const manualFields=new Set();
   const $ = id => document.getElementById(id);
   const form = $('booking-form');
   const button = $('submit-btn');
@@ -9,7 +12,7 @@
   const dialog = $('trip-dialog');
   const companyNames = {discuss:'都可以，先商量',together:'我们两个人',friends:'想带朋友一起'};
   const responseNames = {interested:'愿意一起出门，安排再确认',discuss:'先聊聊，再决定'};
-  let category = 'all', selectedPlan = null, step = 0, submitting = false, attempt = null, submitted = null, toastTimer;
+  let category = 'all', step = 0, submitting = false, attempt = null, submitted = null, toastTimer;
   let favorites = new Set();
   try { favorites = new Set(JSON.parse(localStorage.getItem('weekend-inspiration-favorites') || '[]').filter(id => plans.some(p => p.id === id))); } catch { /* Private mode/storage restrictions must not block the invitation. */ }
   const cfg = window.SITE_CONFIG || {};
@@ -30,7 +33,7 @@
     const filtered=matchingPlans();$('plan-grid').replaceChildren();$('plan-empty').hidden=filtered.length>0;
     $('plan-count').textContent=filtered.length+' 个小计划';
     for(const p of filtered){
-      const card=el('article','plan-card');
+      const card=el('article','plan-card');card.classList.toggle('is-selected',selectedPlans.some(item=>item.id===p.id));
       const art=el('div','plan-art');const open=el('button');open.type='button';open.setAttribute('aria-label','查看'+p.title+'的参考安排');
       const image=el('img');image.src='assets/illustrations/'+p.art+'.svg';image.alt=p.title+'主题插画';image.width=600;image.height=400;image.loading='lazy';open.append(image);open.addEventListener('click',()=>openPlan(p));
       const badge=el('span','plan-badge',p.tag);
@@ -39,7 +42,8 @@
       const body=el('div','plan-body'),meta=el('div','plan-meta');meta.append(el('span','',p.categoryName),el('i'),el('span','',p.durationText));
       const bottom=el('div','plan-bottom'),cost=el('span','plan-cost','参考 ');cost.append(el('b','','¥'+p.cost),document.createTextNode(' / 人'));
       const details=el('button','plan-detail-link','看看小计划 ↗');details.type='button';details.addEventListener('click',()=>openPlan(p));bottom.append(cost,details);
-      body.append(meta,el('h3','',p.title),el('p','',p.subtitle),bottom);card.append(art,body);$('plan-grid').append(card);
+      const select=el('button','plan-select-toggle',selectedPlans.some(item=>item.id===p.id)?'✓ 已选，点此取消':'＋ 加入心愿单');select.type='button';select.dataset.selectPlan=p.id;select.setAttribute('aria-label','选择灵感：'+p.title);select.setAttribute('aria-pressed',String(selectedPlans.some(item=>item.id===p.id)));select.addEventListener('click',()=>{togglePlan(p);document.querySelectorAll('[data-select-plan]').forEach(b=>{if(b.dataset.selectPlan===p.id)b.focus({preventScroll:true});});});
+      body.append(meta,el('h3','',p.title),el('p','',p.subtitle),bottom,select);card.append(art,body);$('plan-grid').append(card);
     }
     for(const chip of document.querySelectorAll('[data-category]')){const active=chip.dataset.category===category;chip.classList.toggle('active',active);chip.setAttribute('aria-pressed',String(active));}
   }
@@ -54,16 +58,30 @@
     const packing=el('div','packing-row');plan.packing.forEach(t=>packing.append(el('span','','✓ '+t)));body.append(packing);
     const weather=el('div','detail-weather');weather.append(el('strong','','☁ 如果天气换了心情'),el('p','',plan.rain));body.append(weather);
     const footer=el('div','detail-footer');footer.append(el('p','','参考灵感，并非已确定的活动。具体地点、营业和费用会再沟通；时间也可以按你的节奏调整。'));
-    const choose=el('button','pill-button','这个想法不错，带入心愿单 ↗');choose.type='button';choose.addEventListener('click',()=>{choosePlan(plan);closeDialog();$('book').scrollIntoView({behavior:'smooth',block:'start'});});footer.append(choose);body.append(footer);content.append(header,body);
+    const choose=el('button','pill-button',selectedPlans.some(p=>p.id===plan.id)?'✓ 已加入，点此取消':'＋ 加入心愿单，继续挑选');choose.type='button';choose.addEventListener('click',()=>{togglePlan(plan);closeDialog();});const go=el('button','text-button','去填写心愿单 ↗');go.type='button';go.addEventListener('click',()=>{closeDialog();$('book').scrollIntoView({behavior:'smooth',block:'start'});});footer.append(choose,go);body.append(footer);content.append(header,body);
     if(!dialog.open)dialog.showModal();document.body.classList.add('dialog-open');
   }
-  function choosePlan(plan){
-    selectedPlan=plan;form.elements.destination.value=plan.destination;form.elements.time_slot.value=plan.slot;form.elements.budget_preference.value=plan.budget;
-    const mood=[...form.querySelectorAll('input[name=mood]')].find(e=>e.value===plan.mood);if(mood)mood.checked=true;
-    $('chosen-title').textContent=plan.title;$('clear-plan').hidden=false;
-    $('success-panel').hidden=true;form.hidden=false;attempt=null;showStep(0,false);toast('已带入心愿单，你还可以改成更喜欢的安排。');
+  function syncSelection() {
+    const suggested=selection.defaults(selectedPlans);
+    for(const name of ['destination','time_slot','budget_preference'])if(!manualFields.has(name))form.elements[name].value=suggested[name];
+    if(!manualFields.has('mood')){const input=[...form.querySelectorAll('input[name=mood]')].find(input=>input.value===suggested.mood);if(input)input.checked=true;}
+    $('chosen-title').textContent=selectedPlans.length?`已选 ${selectedPlans.length} 个灵感，可以组合安排`:'我有自己的出游想法';
+    $('clear-plan').hidden=selectedPlans.length===0;$('chosen-plan-items').hidden=selectedPlans.length===0;$('selection-tray').hidden=selectedPlans.length===0;$('selected-count').textContent=selectedPlans.length;
+    for(const id of ['chosen-plan-items','selected-tray-items']){const list=$(id);list.replaceChildren();for(const plan of selectedPlans){const chip=el('span','selection-tag');const remove=el('button','', '×');remove.type='button';remove.setAttribute('aria-label','移除灵感：'+plan.title);remove.addEventListener('click',()=>togglePlan(plan));chip.append(el('span','',plan.title),remove);list.append(chip);}}
+    $('mobile-bookbar').querySelector('span').textContent=selectedPlans.length?`已选 ${selectedPlans.length} 个喜欢的小计划`:'一个小邀请，按你的节奏。';
+    renderPlans();
   }
-  function clearPlan(){selectedPlan=null;$('chosen-title').textContent='我有自己的出游想法';$('clear-plan').hidden=true;}
+  function togglePlan(plan) {
+    if(submitting)return toast('正在发送中，等结果出来再修改灵感吧。');
+    const exists=selectedPlans.some(p=>p.id===plan.id);
+    if(exists)selectedPlans=selectedPlans.filter(p=>p.id!==plan.id);
+    else{if(selectedPlans.length>=selection.MAX_PLANS)return toast('最多可以选择 8 个灵感。');selectedPlans.push(plan);}
+    syncSelection();attempt=null;$('success-panel').hidden=true;form.hidden=false;showStep(0,false);
+    toast(exists?'已移除这个灵感，其他选择都还在。':`已选 ${selectedPlans.length} 个灵感，还可以继续挑喜欢的。`);
+  }
+  function clearPlan(){selectedPlans=[];syncSelection();attempt=null;}
+  for(const name of ['destination','time_slot','budget_preference'])for(const event of ['input','change'])form.elements[name].addEventListener(event,()=>manualFields.add(name));
+  form.querySelectorAll('input[name=mood]').forEach(input=>input.addEventListener('change',()=>manualFields.add('mood')));
   function filterCategory(value){category=value;renderPlans();}
   document.querySelectorAll('[data-category]').forEach(chip=>chip.addEventListener('click',()=>filterCategory(chip.dataset.category)));
   for(const id of ['duration-filter','budget-filter'])$(id).addEventListener('change',renderPlans);
@@ -73,10 +91,11 @@
   $('close-trip-dialog').addEventListener('click',closeDialog);
   dialog.addEventListener('close',()=>document.body.classList.remove('dialog-open'));
   dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeDialog();}});
-  $('clear-plan').addEventListener('click',()=>{clearPlan();toast('可以直接写下你自己的想法。');});
+  for(const id of ['clear-plan','clear-tray'])$(id).addEventListener('click',()=>{if(submitting)return;clearPlan();$('success-panel').hidden=true;form.hidden=false;showStep(0,false);toast('已清空选择，自己填写的内容仍然保留。');});
   $('not-now').addEventListener('click',()=>{$('no-pressure-feedback').hidden=false;$('not-now').textContent='好好休息，周末愉快 ☀';});
   $('talk-first').addEventListener('click',()=>{
-    clearPlan();form.hidden=false;$('success-panel').hidden=true;form.elements.destination.value='还没想好，想先聊聊';form.elements.outing_date.value='';form.elements.time_slot.value='discuss';
+    if(submitting)return toast('正在发送中，等结果出来再修改吧。');
+    clearPlan();manualFields.delete('destination');manualFields.delete('time_slot');form.hidden=false;$('success-panel').hidden=true;form.elements.destination.value='还没想好，想先聊聊';form.elements.outing_date.value='';form.elements.time_slot.value='discuss';
     form.querySelector('input[name=invitation_response][value=discuss]').checked=true;showStep(0,false);$('book').scrollIntoView({behavior:'smooth'});toast('好呀，先说一点想法，不急着决定。');
   });
   function quickDates(){const base=new Date(today+'T00:00:00Z'),day=base.getUTCDay(),saturday=new Date(base);saturday.setUTCDate(base.getUTCDate()+(6-day+7)%7);const sunday=new Date(base);sunday.setUTCDate(base.getUTCDate()+(7-day)%7);const next=new Date(saturday);next.setUTCDate(saturday.getUTCDate()+7);return {saturday:saturday.toISOString().slice(0,10),sunday:sunday.toISOString().slice(0,10),next:next.toISOString().slice(0,10),discuss:''};}
@@ -90,7 +109,7 @@
     nickname:String(d.get('nickname')||'').trim(),contact_method:String(d.get('contact_method')),contact:String(d.get('contact')||'').trim(),
     destination:String(d.get('destination')||'').trim(),outing_date:String(d.get('outing_date')||'')||null,time_slot:String(d.get('time_slot')||'discuss'),
     guest_count:Number(d.get('guest_count')),mood:String(d.get('mood')||'随性漫游'),message:String(d.get('message')||'').trim(),consent:d.get('consent')==='on',website:String(d.get('website')||''),
-    plan_id:selectedPlan?.id||'custom',plan_title:selectedPlan?.title||'自定义出游',budget_preference:String(d.get('budget_preference')),transport:String(d.get('transport')),
+    plan_id:selectedPlans[0]?.id||'custom',plan_title:selectedPlans[0]?.title||'自定义出游',selected_plans:selection.snapshots(selectedPlans),budget_preference:String(d.get('budget_preference')),transport:String(d.get('transport')),
     company_preference:String(d.get('company_preference')),invitation_response:String(d.get('invitation_response'))
   };}
   function validatePanel(index){
@@ -100,7 +119,7 @@
     if(index===1){if(!p.nickname||!p.contact)return setFeedback('称呼和联系方式不能只填空格哦。',true),false;if(p.contact_method==='phone'&&!/^\+?[0-9 -]{6,20}$/.test(p.contact))return setFeedback('手机号格式似乎不太对，再检查一下吧。',true),false;if(p.website.trim())return setFeedback('提交未通过校验，请刷新后手动填写。',true),false;}
     return true;
   }
-  function review(){const p=payload();const items=[['灵感方案',p.plan_title],['想去 / 想做',p.destination],['方便的时间',(p.outing_date||'日期再商量')+' · '+labels.slots[p.time_slot]],['预算偏好',labels.budgets[p.budget_preference]],['交通方式',labels.transport[p.transport]],['相处方式',companyNames[p.company_preference]+' · '+p.guest_count+' 人'],['怎么称呼你',p.nickname],['联系方式',({wechat:'微信',phone:'手机',other:'其他'})[p.contact_method]+'：'+p.contact],['出游节奏',p.mood],['现在的想法',responseNames[p.invitation_response]],['想说的话',p.message||'暂时没有其他想补充的']];const list=$('review-summary');list.replaceChildren();items.forEach(([k,v])=>list.append(el('dt','',k),el('dd','',v)));}
+  function review(){const p=payload();const items=[['喜欢的灵感',selection.title(p)],['想去 / 想做',p.destination],['方便的时间',(p.outing_date||'日期再商量')+' · '+labels.slots[p.time_slot]],['预算偏好',labels.budgets[p.budget_preference]],['交通方式',labels.transport[p.transport]],['相处方式',companyNames[p.company_preference]+' · '+p.guest_count+' 人'],['怎么称呼你',p.nickname],['联系方式',({wechat:'微信',phone:'手机',other:'其他'})[p.contact_method]+'：'+p.contact],['出游节奏',p.mood],['现在的想法',responseNames[p.invitation_response]],['想说的话',p.message||'暂时没有其他想补充的']];const list=$('review-summary');list.replaceChildren();items.forEach(([k,v])=>list.append(el('dt','',k),el('dd','',v)));}
   function showStep(value,scroll=true){
     step=value;setFeedback('');form.querySelectorAll('[data-step]').forEach(p=>p.hidden=Number(p.dataset.step)!==step);
     document.querySelectorAll('.wizard-steps li').forEach((li,i)=>{if(i===step)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current');li.classList.toggle('completed',i<step);});
@@ -136,7 +155,7 @@
     catch{setFeedback('页面遇到异常，请刷新后重试；若已发送过，请先联系发起人确认记录。',true);}
     finally{submitting=false;button.disabled=false;$('previous-step').disabled=false;button.textContent=retryable?'安全重试这份想法 ↗':'悄悄送出我的想法 ↗';form.removeAttribute('aria-busy');}
   });
-  $('another-booking').addEventListener('click',()=>{form.reset();clearPlan();attempt=null;submitted=null;form.hidden=false;$('success-panel').hidden=true;$('message-count').textContent='0 / 500';updateDateChips();showStep(0);});
+  $('another-booking').addEventListener('click',()=>{manualFields.clear();form.reset();clearPlan();attempt=null;submitted=null;form.hidden=false;$('success-panel').hidden=true;$('message-count').textContent='0 / 500';updateDateChips();showStep(0);});
   function icsEscape(s){return String(s).replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');}
   $('calendar-download').addEventListener('click',()=>{
     if(!submitted?.outing_date||submitted.time_slot==='discuss')return;const p=submitted,lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Weekend Booking//Private Invitation//ZH','CALSCALE:GREGORIAN','BEGIN:VEVENT','UID:'+p.request_id+'@weekend-booking','DTSTAMP:'+new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'')];
@@ -169,5 +188,5 @@
     } catch { /* An edited or invalid invitation never prevents access to the public page. */ }
   }
   readPersonalInvite();
-  saveFavorites();renderPlans();showStep(0,false);
+  saveFavorites();syncSelection();showStep(0,false);
 })();

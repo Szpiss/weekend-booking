@@ -14,6 +14,7 @@
   const planFilter = document.getElementById('plan-filter');
   const sortInput = document.getElementById('sort-input');
   const labels = window.WEEKEND_LABELS;
+  const selection=window.WeekendPlanSelection;
   const detailDialog = document.getElementById('admin-detail-dialog');
   let detailContact = '';
   const displayDate = value => value || '日期待商量';
@@ -79,7 +80,9 @@
       rows = result;
       const selected = planFilter.value; planFilter.replaceChildren();
       const all = document.createElement('option'); all.value='all'; all.textContent='全部灵感方案'; planFilter.append(all);
-      for (const [id,title] of new Map(rows.map(r=>[r.plan_id || 'custom',r.plan_title || '自定义出游']))) {
+      const choices=new Map();
+      for(const row of rows){const plans=selection.recordPlans(row);for(const p of plans.length?plans:[{id:'custom',title:'自定义出游'}])if(!choices.has(p.id))choices.set(p.id,p.title);}
+      for (const [id,title] of choices) {
         const option=document.createElement('option');option.value=id;option.textContent=title;planFilter.append(option);
       }
       planFilter.value=[...planFilter.options].some(o=>o.value===selected)?selected:'all';
@@ -106,8 +109,8 @@
     const query = searchInput.value.toLocaleLowerCase().trim();
     return rows.filter(r => (!dateFilter.value || r.outing_date === dateFilter.value) &&
       (statusFilter.value === 'all' || statusFilter.value === r.status) &&
-      (planFilter.value === 'all' || (r.plan_id || 'custom') === planFilter.value) &&
-      (!query || [r.nickname,r.contact,r.destination,r.message,r.plan_title,labels.responses[r.invitation_response]].some(v => String(v || '').toLocaleLowerCase().includes(query))))
+      (planFilter.value === 'all' || selection.hasPlan(r,planFilter.value)) &&
+      (!query || [r.nickname,r.contact,r.destination,r.message,selection.title(r),labels.responses[r.invitation_response]].some(v => String(v || '').toLocaleLowerCase().includes(query))))
       .sort((a,b)=>sortInput.value==='outing' ? String(a.outing_date || '9999-12-31').localeCompare(String(b.outing_date || '9999-12-31')) || b.created_at.localeCompare(a.created_at) : b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
   }
   function renderRows() {
@@ -123,7 +126,7 @@
       const contact = document.createElement('small'); contact.textContent = `${({ wechat:'微信', phone:'手机', other:'其他' })[r.contact_method] || '联系方式'}：${r.contact}`;
       person.append(name, contact); tr.append(person);
       const trip = document.createElement('td');
-      const plan = document.createElement('strong'); plan.textContent=r.plan_title || '自定义出游';
+      const plan = document.createElement('strong'); plan.textContent=selection.title(r);
       const destination=document.createElement('small');destination.textContent=r.destination;
       const intention=document.createElement('small');intention.className='intention-tag';intention.textContent=labels.responses[r.invitation_response] || '愿意一起出门';
       trip.append(plan,destination,intention);tr.append(trip);
@@ -172,7 +175,7 @@
   function exportCsv() {
     if (!activeUser || loading) return;
     const header = ['预约编号', '提交时间', '昵称', '联系方式类型', '联系方式', '目的地', '预约日期', '预约时间段', '灵感方案', '预算偏好', '交通方式', '相处方式', '当前想法', '人数', '偏好', '留言', '状态'];
-    const matrix = [header, ...filtered().map(r => [r.id, r.created_at, r.nickname, r.contact_method, r.contact, r.destination, displayDate(r.outing_date), slotNames[r.time_slot] || r.time_slot, r.plan_title || '自定义出游', labels.budgets[r.budget_preference] || '一起商量', labels.transport[r.transport] || '一起商量', labels.company[r.company_preference] || '先商量', labels.responses[r.invitation_response] || '愿意一起出门', r.guest_count, r.mood, r.message, statusNames[r.status] || r.status])];
+    const matrix = [header, ...filtered().map(r => [r.id, r.created_at, r.nickname, r.contact_method, r.contact, r.destination, displayDate(r.outing_date), slotNames[r.time_slot] || r.time_slot, selection.title(r), labels.budgets[r.budget_preference] || '一起商量', labels.transport[r.transport] || '一起商量', labels.company[r.company_preference] || '先商量', labels.responses[r.invitation_response] || '愿意一起出门', r.guest_count, r.mood, r.message, statusNames[r.status] || r.status])];
     const csv = '\ufeff' + matrix.map(line => line.map(escapeCsv).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8;' }));
     const a = document.createElement('a'); a.href = url; a.download = `出游预约_${new Date().toISOString().slice(0,10)}.csv`;
@@ -230,7 +233,7 @@
   });
   function openDetails(r) {
     detailContact=r.contact;document.getElementById('copy-feedback').textContent='';
-    const items=[['提交参考号','WK-'+r.request_id.slice(0,8).toUpperCase()],['昵称',r.nickname],['联系方式',r.contact],['当前想法',labels.responses[r.invitation_response] || '愿意一起出门'],['灵感方案',r.plan_title || '自定义出游'],['目的地',r.destination],['日期',displayDate(r.outing_date)],['时间段',slotNames[r.time_slot] || r.time_slot],['人数',r.guest_count+' 人'],['相处方式',labels.company[r.company_preference] || '先商量'],['预算偏好',labels.budgets[r.budget_preference] || '一起商量'],['交通方式',labels.transport[r.transport] || '一起商量'],['节奏',r.mood],['留言',r.message || '无备注'],['状态',statusNames[r.status]],['提交时间',new Date(r.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})]];
+    const items=[['提交参考号','WK-'+r.request_id.slice(0,8).toUpperCase()],['昵称',r.nickname],['联系方式',r.contact],['当前想法',labels.responses[r.invitation_response] || '愿意一起出门'],['灵感方案',selection.recordPlans(r).length?selection.recordPlans(r).map((p,i)=>`${i+1}. ${p.title}`).join('\n'):'自定义出游'],['目的地',r.destination],['日期',displayDate(r.outing_date)],['时间段',slotNames[r.time_slot] || r.time_slot],['人数',r.guest_count+' 人'],['相处方式',labels.company[r.company_preference] || '先商量'],['预算偏好',labels.budgets[r.budget_preference] || '一起商量'],['交通方式',labels.transport[r.transport] || '一起商量'],['节奏',r.mood],['留言',r.message || '无备注'],['状态',statusNames[r.status]],['提交时间',new Date(r.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})]];
     const list=document.getElementById('reservation-details');list.replaceChildren();
     for(const [name,value] of items){const dt=document.createElement('dt');dt.textContent=name;const dd=document.createElement('dd');dd.textContent=String(value);list.append(dt,dd);}
     detailDialog.showModal();
