@@ -11,7 +11,13 @@
   const searchInput = document.getElementById('search-input');
   const statusFilter = document.getElementById('status-filter');
   const dateFilter = document.getElementById('date-filter');
-  const slotNames = {morning:'上午 08:00–12:00', afternoon:'下午 12:00–18:00', evening:'晚上 18:00–22:00', all_day:'全天'};
+  const planFilter = document.getElementById('plan-filter');
+  const sortInput = document.getElementById('sort-input');
+  const labels = window.WEEKEND_LABELS;
+  const detailDialog = document.getElementById('admin-detail-dialog');
+  let detailContact = '';
+  const displayDate = value => value || '日期待商量';
+  const slotNames = {discuss:'时间段再商量',morning:'上午 08:00–12:00', afternoon:'下午 12:00–18:00', evening:'晚上 18:00–22:00', all_day:'全天'};
   let generation = 0;
   let loading = false;
   let rows = [];
@@ -71,6 +77,12 @@
       }
       if (current !== generation || !activeUser) return;
       rows = result;
+      const selected = planFilter.value; planFilter.replaceChildren();
+      const all = document.createElement('option'); all.value='all'; all.textContent='全部灵感方案'; planFilter.append(all);
+      for (const [id,title] of new Map(rows.map(r=>[r.plan_id || 'custom',r.plan_title || '自定义出游']))) {
+        const option=document.createElement('option');option.value=id;option.textContent=title;planFilter.append(option);
+      }
+      planFilter.value=[...planFilter.options].some(o=>o.value===selected)?selected:'all';
       document.getElementById('stat-all').textContent = rows.length;
       document.getElementById('stat-pending').textContent = rows.filter(x => x.status === 'pending').length;
       document.getElementById('stat-confirmed').textContent = rows.filter(x => x.status === 'confirmed').length;
@@ -92,11 +104,15 @@
   }
   function filtered() {
     const query = searchInput.value.toLocaleLowerCase().trim();
-    return rows.filter(r => (!dateFilter.value || r.outing_date === dateFilter.value) && (statusFilter.value === 'all' || statusFilter.value === r.status) &&
-      (!query || [r.nickname, r.contact, r.destination, r.message].some(v => String(v || '').toLocaleLowerCase().includes(query))));
+    return rows.filter(r => (!dateFilter.value || r.outing_date === dateFilter.value) &&
+      (statusFilter.value === 'all' || statusFilter.value === r.status) &&
+      (planFilter.value === 'all' || (r.plan_id || 'custom') === planFilter.value) &&
+      (!query || [r.nickname,r.contact,r.destination,r.message,r.plan_title,labels.responses[r.invitation_response]].some(v => String(v || '').toLocaleLowerCase().includes(query))))
+      .sort((a,b)=>sortInput.value==='outing' ? String(a.outing_date || '9999-12-31').localeCompare(String(b.outing_date || '9999-12-31')) || b.created_at.localeCompare(a.created_at) : b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
   }
   function renderRows() {
     const items = filtered();
+    document.querySelectorAll('[data-quick-status]').forEach(b=>{const active=b.dataset.quickStatus===statusFilter.value;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
     document.getElementById('visible-count').textContent = items.length;
     document.getElementById('empty-state').hidden = items.length !== 0;
     tbody.replaceChildren();
@@ -106,13 +122,17 @@
       const name = document.createElement('strong'); name.textContent = r.nickname;
       const contact = document.createElement('small'); contact.textContent = `${({ wechat:'微信', phone:'手机', other:'其他' })[r.contact_method] || '联系方式'}：${r.contact}`;
       person.append(name, contact); tr.append(person);
-      tr.append(td(r.destination));
-      const date = document.createElement('td'); date.textContent = `${r.outing_date} · ${slotNames[r.time_slot] || r.time_slot} · ${r.guest_count} 人`; tr.append(date);
+      const trip = document.createElement('td');
+      const plan = document.createElement('strong'); plan.textContent=r.plan_title || '自定义出游';
+      const destination=document.createElement('small');destination.textContent=r.destination;
+      const intention=document.createElement('small');intention.className='intention-tag';intention.textContent=labels.responses[r.invitation_response] || '愿意一起出门';
+      trip.append(plan,destination,intention);tr.append(trip);
+      const date = document.createElement('td'); date.textContent = `${displayDate(r.outing_date)} · ${slotNames[r.time_slot] || r.time_slot} · ${r.guest_count} 人`; tr.append(date);
       const msg = document.createElement('td');
       const mood = document.createElement('strong'); mood.textContent = r.mood;
       const note = document.createElement('small'); note.className = 'message'; note.textContent = r.message || '无备注';
       msg.append(mood, note); tr.append(msg);
-      tr.append(td(new Date(r.created_at).toLocaleString('zh-CN')));
+      tr.append(td(new Date(r.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})));
       const state = document.createElement('td');
       const select = document.createElement('select'); select.className = 'status-select'; select.setAttribute('aria-label', `修改 ${r.nickname} 的预约状态`);
       for (const [value, name] of Object.entries(statusNames)) {
@@ -139,6 +159,7 @@
         } finally { select.disabled = false; }
       });
       state.append(select); tr.append(state);
+      const detail= document.createElement('td'); const detailButton=document.createElement('button');detailButton.type='button';detailButton.className='detail-row-button';detailButton.textContent='查看 ↗';detailButton.setAttribute('aria-label',`查看 ${r.nickname} 的完整预约`);detailButton.addEventListener('click',()=>openDetails(r));detail.append(detailButton);tr.append(detail);
       tbody.append(tr);
     });
   }
@@ -150,8 +171,8 @@
   }
   function exportCsv() {
     if (!activeUser || loading) return;
-    const header = ['预约编号', '提交时间', '昵称', '联系方式类型', '联系方式', '目的地', '预约日期', '预约时间段', '人数', '偏好', '留言', '状态'];
-    const matrix = [header, ...filtered().map(r => [r.id, r.created_at, r.nickname, r.contact_method, r.contact, r.destination, r.outing_date, slotNames[r.time_slot] || r.time_slot, r.guest_count, r.mood, r.message, statusNames[r.status] || r.status])];
+    const header = ['预约编号', '提交时间', '昵称', '联系方式类型', '联系方式', '目的地', '预约日期', '预约时间段', '灵感方案', '预算偏好', '交通方式', '相处方式', '当前想法', '人数', '偏好', '留言', '状态'];
+    const matrix = [header, ...filtered().map(r => [r.id, r.created_at, r.nickname, r.contact_method, r.contact, r.destination, displayDate(r.outing_date), slotNames[r.time_slot] || r.time_slot, r.plan_title || '自定义出游', labels.budgets[r.budget_preference] || '一起商量', labels.transport[r.transport] || '一起商量', labels.company[r.company_preference] || '先商量', labels.responses[r.invitation_response] || '愿意一起出门', r.guest_count, r.mood, r.message, statusNames[r.status] || r.status])];
     const csv = '\ufeff' + matrix.map(line => line.map(escapeCsv).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8;' }));
     const a = document.createElement('a'); a.href = url; a.download = `出游预约_${new Date().toISOString().slice(0,10)}.csv`;
@@ -176,8 +197,10 @@
   function clearPrivateData() {
     generation++; activeUser = null; rows = [];
     tbody.replaceChildren();
+    detailContact='';detailDialog.close();document.getElementById('reservation-details').replaceChildren();
+    document.getElementById('invite-link-form').reset();document.getElementById('invite-link-output').value='';document.getElementById('invite-link-result').hidden=true;document.getElementById('preview-invite-link').removeAttribute('href');document.getElementById('invite-link-feedback').textContent='';
     for (const id of ['stat-all','stat-pending','stat-confirmed','stat-cancelled','visible-count']) document.getElementById(id).textContent = '0';
-    searchInput.value = ''; dateFilter.value = ''; statusFilter.value = 'all';
+    searchInput.value = ''; dateFilter.value = ''; statusFilter.value = 'all'; planFilter.value='all'; sortInput.value='newest';
     dataFeedback.textContent = '';
     document.getElementById('password-form').reset();
     document.getElementById('password-feedback').textContent = '';
@@ -205,13 +228,43 @@
     } catch (error) { showFeedback(feedback,'更新失败，请稍后重试或重新登录。',true); }
     finally { button.disabled = false; }
   });
+  function openDetails(r) {
+    detailContact=r.contact;document.getElementById('copy-feedback').textContent='';
+    const items=[['提交参考号','WK-'+r.request_id.slice(0,8).toUpperCase()],['昵称',r.nickname],['联系方式',r.contact],['当前想法',labels.responses[r.invitation_response] || '愿意一起出门'],['灵感方案',r.plan_title || '自定义出游'],['目的地',r.destination],['日期',displayDate(r.outing_date)],['时间段',slotNames[r.time_slot] || r.time_slot],['人数',r.guest_count+' 人'],['相处方式',labels.company[r.company_preference] || '先商量'],['预算偏好',labels.budgets[r.budget_preference] || '一起商量'],['交通方式',labels.transport[r.transport] || '一起商量'],['节奏',r.mood],['留言',r.message || '无备注'],['状态',statusNames[r.status]],['提交时间',new Date(r.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})]];
+    const list=document.getElementById('reservation-details');list.replaceChildren();
+    for(const [name,value] of items){const dt=document.createElement('dt');dt.textContent=name;const dd=document.createElement('dd');dd.textContent=String(value);list.append(dt,dd);}
+    detailDialog.showModal();
+  }
+  for(const plan of window.WEEKEND_CATALOG || []){const option=document.createElement('option');option.value=plan.id;option.textContent=plan.title;document.getElementById('suggested-plan').append(option);}
+  document.getElementById('invite-link-form').addEventListener('submit',event=>{
+    event.preventDefault();if(!activeUser)return;
+    const form=event.currentTarget;if(!form.reportValidity())return;
+    const data=new FormData(form),sender=String(data.get('sender')||'').trim(),recipient=String(data.get('recipient')||'').trim(),message=String(data.get('invitation_message')||'').trim();
+    if(!sender||!recipient||!message)return showFeedback(document.getElementById('invite-link-feedback'),'称呼和文案不能只填空格。',true);
+    const bytes=new TextEncoder().encode(JSON.stringify({sender,recipient,message,plan:String(data.get('suggested_plan')||'')}));
+    const encoded=btoa(Array.from(bytes,b=>String.fromCharCode(b)).join('')).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    const url=new URL('index.html',location.href);url.hash='invite='+encoded;
+    document.getElementById('invite-link-output').value=url.href;document.getElementById('preview-invite-link').href=url.href;document.getElementById('invite-link-result').hidden=false;
+    showFeedback(document.getElementById('invite-link-feedback'),'链接已生成。称呼和文案仅放在链接中，不另存数据库。',false);
+  });
+  document.getElementById('copy-invite-link').addEventListener('click',async()=>{
+    try {await navigator.clipboard.writeText(document.getElementById('invite-link-output').value);showFeedback(document.getElementById('invite-link-feedback'),'邀请链接已复制，可以由你亲自发送。',false);}
+    catch {showFeedback(document.getElementById('invite-link-feedback'),'无法自动复制，请手动选择上方链接。',true);}
+  });
+  document.getElementById('close-admin-detail').addEventListener('click',()=>detailDialog.close());
+  document.getElementById('copy-contact').addEventListener('click',async()=>{
+    try {await navigator.clipboard.writeText(detailContact);showFeedback(document.getElementById('copy-feedback'),'已复制，请仅用于这次沟通。',false);}
+    catch {showFeedback(document.getElementById('copy-feedback'),'未能复制，可手动选择上方联系方式。',true);}
+  });
+  document.querySelectorAll('[data-quick-status]').forEach(b=>b.addEventListener('click',()=>{statusFilter.value=b.dataset.quickStatus;renderRows();}));
+  planFilter.addEventListener('change',renderRows);sortInput.addEventListener('change',renderRows);
   document.getElementById('refresh-btn').addEventListener('click', loadBookings);
   document.getElementById('export-btn').addEventListener('click', exportCsv);
   searchInput.addEventListener('input', renderRows);
   statusFilter.addEventListener('change', renderRows);
   dateFilter.addEventListener('change', renderRows);
   document.getElementById('clear-filters').addEventListener('click', () => {
-    searchInput.value = ''; dateFilter.value = ''; statusFilter.value = 'all'; renderRows();
+    searchInput.value = ''; dateFilter.value = ''; statusFilter.value = 'all'; planFilter.value='all'; sortInput.value='newest'; renderRows();
   });
   (async () => {
     const { data } = await db.auth.getSession();

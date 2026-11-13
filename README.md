@@ -1,34 +1,51 @@
-# 周末出逃计划 · weekend-booking
+# 周末出逃计划 · 私人邀约版
 
-基于原项目继续开发，HTML / CSS / JavaScript + Supabase PostgreSQL、Auth、RLS + GitHub Pages。
+一个轻松表达出游想法的小网站。HTML、CSS、JavaScript + Supabase Auth / PostgreSQL / RLS，部署在 GitHub Pages。
 
 - 预约：https://szpiss.github.io/weekend-booking/
 - 后台：https://szpiss.github.io/weekend-booking/admin.html
-- 仓库：https://github.com/Szpiss/weekend-booking
 
-## 日常操作
+## 这版可以做什么
 
-访客填写昵称、联系方式、目的地、日期、时间段、人数、偏好和留言，勾选信息使用说明后提交。记录直接写入 Supabase 数据库，浏览器不保存预约数据。发起人联系确认后才确定行程。
+- 奶油绿旅行手帐风格，9 张原创 SVG 插画，兼容手机、平板和电脑。
+- 8 种参考灵感：森林、街区漫游、咖啡、野餐、日落、看展、美食、周边小镇。按主题、时长和预算筛选，收藏、随机抽取，查看参考时间线、准备清单和天气备选，再带入预约。
+- 三步表达：出游心愿 → 说两句话 → 确认一下。日期可以留空，交通和预算可以商量，也能明确选择带朋友或先聊聊。意愿选项没有默认答案，必须主动选择。
+- 只有最后明确点击发送才保存预约。浏览、收藏、婉拒和未发送的表单不写入预约库；收藏仅保存公开的灵感 ID，不保存联系方式、留言或填写草稿。
+- 提交成功后显示参考号；有明确时间的意向可下载标为 TENTATIVE 的日历文件，日历不包含联系方式或私密留言。
+- 管理员查询完整记录、按方案/日期/状态筛选、按日期排序、修改处理状态和导出 CSV；「先聊聊」与「愿意出门」作为不同意愿保留。
+- 后台可填写双方称呼、一句话和推荐方案，生成专属邀请链接，由管理员自行发送。称呼和文案存于 URL fragment，不另存数据库、不跟踪打开；拿到链接的人可见这些内容。对方仍须自主选择和明确提交。
 
-使用单独交付的站点管理员邮箱和初始密码登录 `admin.html`；这不是 Supabase 控制台账号。建议首次登录后展开底部「修改管理员密码」自行改密。后台支持关键词、预约日期和状态组合筛选；选择待处理、已确认、已取消即可保存状态。点击「导出 CSV」导出当前筛选结果，清除筛选后导出全部。退出会清除页面数据，会话只保存在当前标签页的 sessionStorage。
+卡片是参考灵感，不是已成团活动。金额是粗略预算，不是报名费或报价，不收款、不自动订票，也不保证场馆可约、天气或成行。
 
-## 修改活动信息
+## 管理员使用
 
-编辑 `index.html` 的标题、说明与文案，样式在 `assets/styles.css`；更改后执行 `python3 scripts/version-assets.py` 更新资源版本号，再提交到 `main` 后自动发布。所有资源使用相对路径，支持 GitHub Pages 子路径。日期为中国时区今天起一年内，人数 1–8。修改时间段或偏好的取值时，需要同步更改 HTML、JavaScript 和数据库约束；单改显示文案则无需变更数据库。
+使用单独交付的站点账号登录后台，与 Supabase 控制台账号无关。可在后台「修改管理员密码」设置新密码。查看详情可看到意愿、方案、预算、交通、相处方式、留言和提交参考号。
 
-## 数据权限
+CSV 导出当前筛选结果，要导出全部先清除筛选。文件包含 UTF-8 BOM，处理引号、换行及公式注入。退出登录会清空预约 DOM、详情和生成的链接；会话保存在当前标签页的 sessionStorage。
 
-Supabase 项目：`weekend-booking`，新加坡区域。`database.sql` 是新项目的初始脚本，对应 `create_booking_schema_and_rls` 迁移，不是重复执行的升级脚本。
+专属邀请：展开「写一张专属邀请」，填写称呼、文案和推荐方案，生成后复制链接或预览。请勿在文案或称呼中填写私人联系方式；这不是限指定收件人访问的加密链接。
 
-- `outing_reservations` 持久化预约，`site_admins` 按 Auth 用户 UUID 授权；两表均启用 RLS。
-- `anon` 仅可 INSERT 允许的预约字段，无 SELECT / UPDATE / DELETE 权限，不能伪造状态或提交时间。
-- `authenticated` 具有 SELECT 和 `UPDATE(status)` 权限，RLS 进一步检查该用户是否在 `site_admins`。普通登录用户无法读取记录或修改数据，也不能提升自身权限。
-- 管理员仅可查询和更改状态，不能通过网页删除记录或修改成员权限。
-- 私有 schema 内部触发器固定空 search_path，撤销浏览器角色的函数执行权限。触发器检查日期、手机号，并通过事务锁串行限制同一联系方式每小时 3 份、每日 10 份。
-- 数据库约束检查长度、人数、偏好、同意和蜜罐字段。请求 UUID 防止网络重试重复；同一联系方式、目的地、日期和时间段的未取消行程唯一。
-- CSV 包含 UTF-8 BOM，正确转义逗号、引号、换行，并处理潜在的电子表格公式注入。
+## 修改内容
 
-新增管理员：由项目所有者先在 Supabase Authentication 创建并确认账号，再在 SQL Editor 执行：
+- 活动灵感：编辑 `assets/catalog.js`；`id` 保持稳定。这里管理标题、插画、分类、预算区间、参考路线、准备清单和天气备选。
+- 页面文案：`index.html`。新前台样式：`assets/club.css`；新后台样式：`assets/admin-v2.css`。`assets/styles.css` 保留基础表单样式。
+- 插画：`assets/illustrations/`，独立原创 SVG，页面不依赖外部图片/CDN/字体服务。
+- 修改后执行 `python3 scripts/version-assets.py`，再提交，避免浏览器缓存旧 CSS 或 JS。
+- 发布前先检查，并取得网站所有者的明确上线许可；推送 main 会触发 GitHub Pages。
+
+## 数据库和安全
+
+项目 ID：`rmefpkyslcfljrkkmndx`，新加坡区域。
+
+- 新建空库使用 `database.sql`；已有 v1 库升级使用 `database-v2.sql`。当前项目已应用这些升级，不要重复运行。
+- 两表均启用 RLS，匿名只可 INSERT 允许的字段，无 SELECT / UPDATE / DELETE。前端仅使用公开 publishable key。
+- 普通登录身份不会自动成为管理员；只有 `site_admins` 中的 UUID 可以 SELECT 和 `UPDATE(status)`，不能改意愿或个人资料。授权表不能被浏览器角色写入。
+- 字段长度、枚举、人数、日期、手机号、同意标记和蜜罐由 SQL 校验；联系方式维度每小时最多 3 份、每日最多 10 份，以事务锁防并发绕过。
+- request_id 防重试重复；相同联系方式、目的地、日期和时间段的未取消预约唯一，日期为 NULL 时同样防重。
+- 私有触发器固定空 search_path，撤销浏览器角色执行权限。预约不使用 localStorage 持久化。
+- `config.js` 仅有项目 URL 和 publishable key，禁止加入 service_role、secret key、数据库密码或管理员密码。
+
+新增管理员须由项目所有者在 Supabase Auth 创建并确认账号，再明确授予成员身份：
 
 ```sql
 insert into public.site_admins(user_id)
@@ -37,24 +54,22 @@ where lower(email)=lower('替换为管理员邮箱') and email_confirmed_at is n
 on conflict do nothing;
 ```
 
-从 `site_admins` 删除对应 UUID 即撤销其权限，RLS 每次请求均检查成员表。不要开放成员管理写权限给网页用户。
+从成员表删除对应 UUID 即可撤销权限。不会仅依赖前端隐藏按钮。
 
-`config.js` 只包含允许公开的项目 URL 和 publishable key。绝不能放入 service_role、secret key、数据库密码或管理员密码。前端页面和配置文件不包含管理员邮箱或管理员密码。
+## 参考与独立实现
 
-首次创建账号使用了带随机令牌与过期时间的一次性服务端初始化函数。完成后立即替换为无功能的 410 响应并恢复 JWT 校验，当前不包含令牌或账号创建逻辑；正常预约不使用此函数。
+借鉴 [AdventureLog](https://github.com/seanmorley15/AdventureLog) 的行程组织思路、[Hi.Events](https://github.com/HiEventsDev/Hi.Events) 的活动详情与报名体验、[Promptrip](https://github.com/sergfv/promptrip) 的轻量静态交互思路。本项目代码和插画独立实现，未复制这些项目的源码、品牌或素材。
 
-## 防滥用范围
-
-已有数据库校验、联系方式维度限流、重复检测和蜜罐。提交者可以更换联系方式，因此这属于基础防护；持续机器人攻击需要额外的验证码和可信服务端 IP 限流。不要把预约 CSV 或管理员登录文件上传到公开仓库。
-
-## 部署和维护
-
-GitHub Pages 从 `main` 根目录发布，`.nojekyll` 禁用 Jekyll。Supabase JS 固定为 2.119.0，托管于 `assets/vendor/`，附 MIT 许可，无运行时 CDN 或 Google Fonts 依赖。
+## 本地检查
 
 ```sh
 python3 -m http.server 8080
 node --check assets/app.js
 node --check assets/admin.js
+node --check assets/catalog.js
+python3 scripts/version-assets.py
 ```
 
-本地预览同样连接真实数据库，仅使用明确标记的虚构测试信息并及时清理。免费项目可能受平台暂停策略影响，连接失败时检查 Supabase 控制台健康状态。实际部署验收证据见 `VERIFICATION.md`。
+本地预览同样连接 `config.js` 中的真实数据库。测试使用明确标记的虚构资料并精确清理，保留原有预约。
+
+现有基础防垃圾措施不等同于验证码或可信 IP 限流。Supabase 泄露密码检测尚未启用；实体手机、微信内置浏览器和跨地区网络仍需额外验证。V1 历史验收见 `VERIFICATION.md`，本次改造见 `V2_VERIFICATION.md`。
