@@ -123,10 +123,18 @@
     if(!db)return setFeedback('暂时连接不上预约服务，稍后再试试吧。',true);
     const p=payload(),signature=JSON.stringify(p);if(!attempt||attempt.signature!==signature)attempt={signature,id:crypto.randomUUID()};p.request_id=attempt.id;
     submitting=true;button.disabled=true;$('previous-step').disabled=true;button.textContent='正在悄悄送出…';form.setAttribute('aria-busy','true');setFeedback('');
-    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
-    try{const {error}=await db.from('outing_reservations').insert(p).abortSignal(controller.signal);if(error?.code==='23505')return finish(p,true);if(error)throw error;finish(p,false);}
-    catch(error){if(error.message?.includes('RATE_LIMITED'))setFeedback('发送得有点频繁，同一联系方式每小时最多 3 份。先歇一会儿吧。',true);else if(error.code==='23514')setFeedback('有一项内容未通过校验，请检查日期、联系方式和字数。',true);else setFeedback('暂时无法确认发送结果，请检查网络后再试。同一份内容重试不会重复保存。',true);}
-    finally{clearTimeout(timeout);submitting=false;button.disabled=false;$('previous-step').disabled=false;button.textContent='悄悄送出我的想法 ↗';form.removeAttribute('aria-busy');}
+    let retryable=false;
+    try{
+      const result=await window.WeekendBookingRequest.send(db,p,{
+        offline:navigator.onLine===false,
+        onSlow:()=>{button.textContent='网络有点慢，还在发送…';setFeedback('还在等待连接。请先留在这个页面，不用重复点击。');}
+      });
+      if(result.ok)return finish(p,result.duplicate);
+      retryable=['timeout','offline','network','service'].includes(result.kind);
+      setFeedback(window.WeekendBookingRequest.messages[result.kind] || window.WeekendBookingRequest.messages.request,true);
+    }
+    catch{setFeedback('页面遇到异常，请刷新后重试；若已发送过，请先联系发起人确认记录。',true);}
+    finally{submitting=false;button.disabled=false;$('previous-step').disabled=false;button.textContent=retryable?'安全重试这份想法 ↗':'悄悄送出我的想法 ↗';form.removeAttribute('aria-busy');}
   });
   $('another-booking').addEventListener('click',()=>{form.reset();clearPlan();attempt=null;submitted=null;form.hidden=false;$('success-panel').hidden=true;$('message-count').textContent='0 / 500';updateDateChips();showStep(0);});
   function icsEscape(s){return String(s).replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');}
