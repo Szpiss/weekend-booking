@@ -1,87 +1,60 @@
-# 周末出逃计划 · 出游预约网页
+# 周末出逃计划 · weekend-booking
 
-一套可部署在 GitHub Pages 的静态网站，搭配 Supabase 托管数据库、管理员身份验证和数据库行级权限（RLS）。
+基于原项目继续开发，HTML / CSS / JavaScript + Supabase PostgreSQL、Auth、RLS + GitHub Pages。
 
-## 功能
+- 预约：https://szpiss.github.io/weekend-booking/
+- 后台：https://szpiss.github.io/weekend-booking/admin.html
+- 仓库：https://github.com/Szpiss/weekend-booking
 
-- 访客：响应式活动预约、联系方式、目的地、日期、人数、偏好、备注、信息使用同意、提交反馈。
-- 管理员：邮箱密码登录、查看所有真实预约、搜索与筛选、标记为已确认/已取消、CSV 导出。
-- 数据权限：未登录访客只可写入新预约，不能读取他人的预约；后台读写需管理员授权。
+## 日常操作
 
-## 重要限制
+访客填写昵称、联系方式、目的地、日期、时间段、人数、偏好和留言，勾选信息使用说明后提交。记录直接写入 Supabase 数据库，浏览器不保存预约数据。发起人联系确认后才确定行程。
 
-**首次下载时并未连接真实数据库，提交按钮默认禁用。** 必须配置 Supabase 后才会真正接收预约。GitHub Pages 本身不提供数据库或服务端。
+使用单独交付的站点管理员邮箱和初始密码登录 `admin.html`；这不是 Supabase 控制台账号。建议首次登录后展开底部「修改管理员密码」自行改密。后台支持关键词、预约日期和状态组合筛选；选择待处理、已确认、已取消即可保存状态。点击「导出 CSV」导出当前筛选结果，清除筛选后导出全部。退出会清除页面数据，会话只保存在当前标签页的 sessionStorage。
 
-## 一、配置 Supabase
+## 修改活动信息
 
-1. 在 https://supabase.com/dashboard 创建自己的项目。
-2. 进入 `SQL Editor`，粘贴并运行项目根目录下的 `database.sql`，确认无报错。
-3. 在 `Authentication → Users` 创建你自己的管理员账号，设置强密码，并确认邮箱已经验证。建议关闭公共自助注册。
-4. 再进入 `SQL Editor`，把下面 SQL 的邮箱替换为你自己的管理员邮箱，执行并检查返回至少 1 行：
+编辑 `index.html` 的标题、说明与文案，样式在 `assets/styles.css`；提交到 `main` 后自动发布。所有资源使用相对路径，支持 GitHub Pages 子路径。日期为中国时区今天起一年内，人数 1–8。修改时间段或偏好的取值时，需要同步更改 HTML、JavaScript 和数据库约束；单改显示文案则无需变更数据库。
+
+## 数据权限
+
+Supabase 项目：`weekend-booking`，新加坡区域。`database.sql` 是新项目的初始脚本，对应 `create_booking_schema_and_rls` 迁移，不是重复执行的升级脚本。
+
+- `outing_reservations` 持久化预约，`site_admins` 按 Auth 用户 UUID 授权；两表均启用 RLS。
+- `anon` 仅可 INSERT 允许的预约字段，无 SELECT / UPDATE / DELETE 权限，不能伪造状态或提交时间。
+- `authenticated` 具有 SELECT 和 `UPDATE(status)` 权限，RLS 进一步检查该用户是否在 `site_admins`。普通登录用户无法读取记录或修改数据，也不能提升自身权限。
+- 管理员仅可查询和更改状态，不能通过网页删除记录或修改成员权限。
+- 私有 schema 内部触发器固定空 search_path，撤销浏览器角色的函数执行权限。触发器检查日期、手机号，并通过事务锁串行限制同一联系方式每小时 3 份、每日 10 份。
+- 数据库约束检查长度、人数、偏好、同意和蜜罐字段。请求 UUID 防止网络重试重复；同一联系方式、目的地、日期和时间段的未取消行程唯一。
+- CSV 包含 UTF-8 BOM，正确转义逗号、引号、换行，并处理潜在的电子表格公式注入。
+
+新增管理员：由项目所有者先在 Supabase Authentication 创建并确认账号，再在 SQL Editor 执行：
 
 ```sql
 insert into public.site_admins(user_id)
-select id from auth.users where email = '你的管理员邮箱@example.com'
-on conflict (user_id) do nothing;
-
-select user_id from public.site_admins;
+select id from auth.users
+where lower(email)=lower('替换为管理员邮箱') and email_confirmed_at is not null
+on conflict do nothing;
 ```
 
-5. 在 Supabase 项目 `Project Settings → API`（不同版本界面位置可能调整）找到项目 URL 和 Publishable key（或者旧版 anon public key），填写到 `config.js`：
+从 `site_admins` 删除对应 UUID 即撤销其权限，RLS 每次请求均检查成员表。不要开放成员管理写权限给网页用户。
 
-```js
-window.SITE_CONFIG = {
-  supabaseUrl: "https://your-project.supabase.co",
-  supabasePublishableKey: "sb_publishable_..."
-};
+`config.js` 只包含允许公开的项目 URL 和 publishable key。绝不能放入 service_role、secret key、数据库密码或管理员密码。个人管理员邮箱和凭据不在仓库内。
+
+首次创建账号使用了带随机令牌与过期时间的一次性服务端初始化函数。完成后立即替换为无功能的 410 响应并恢复 JWT 校验，当前不包含令牌或账号创建逻辑；正常预约不使用此函数。
+
+## 防滥用范围
+
+已有数据库校验、联系方式维度限流、重复检测和蜜罐。提交者可以更换联系方式，因此这属于基础防护；持续机器人攻击需要额外的验证码和可信服务端 IP 限流。不要把预约 CSV 或管理员登录文件上传到公开仓库。
+
+## 部署和维护
+
+GitHub Pages 从 `main` 根目录发布，`.nojekyll` 禁用 Jekyll。Supabase JS 固定为 2.119.0，托管于 `assets/vendor/`，附 MIT 许可，无运行时 CDN 或 Google Fonts 依赖。
+
+```sh
+python3 -m http.server 8080
+node --check assets/app.js
+node --check assets/admin.js
 ```
 
-**绝对不要填入 `service_role` key 或 `secret` key。** `config.js` 会被公开访问。公开的 Publishable/anon key 在 RLS 和权限正确配置时才适合前端。
-
-## 二、部署 GitHub Pages
-
-1. GitHub 创建一个**新仓库**（建议名 `weekend-booking`），设为 Public。
-2. 将本项目中的 `index.html`, `admin.html`, `config.js`, `database.sql`, `.nojekyll`, `assets/`, `README.md` 上传到仓库根目录，提交到 `main` 分支。`database.sql` 不包含实际账号凭据。
-3. 打开仓库 `Settings → Pages → Build and deployment`，`Source` 选择 **Deploy from a branch**；选择 `main` 分支和 `/(root)`，保存。
-4. 等 GitHub Pages 发布后，前台网址通常为：`https://你的用户名.github.io/weekend-booking/`；后台为 `https://你的用户名.github.io/weekend-booking/admin.html`。
-5. 公开网址只是通用格式，**以 GitHub Pages 设置页实际显示的站点链接为准**。
-
-## 三、联调与安全检查
-
-- 用无痕窗口进入前台，填写一条测试预约，检查是否显示「预约已送达」。
-- 登录后台，应看到刚提交的预约、联系方式，并能够修改状态及导出 CSV。
-- **用另一个未登录浏览器尝试读取数据时应该被数据库拒绝**，不是只靠隐藏后台入口。
-- 用非管理员账号登录时，应显示「没有管理员权限」。
-- 如提交失败，检查浏览器控制台、Supabase API 配置和 `database.sql` 权限政策。
-
-## 四、运营注意事项
-
-- 当前允许匿名公开提交，在面对机器人垃圾数据时仍需要 **验证码、限流或 Supabase Edge Function** 等进一步的服务端防滥用措施。前端蜜罐不是可靠的服务端安全屏障。
-- 只收集组织活动所需的最低限度个人信息。不要把后台导出的联系方式 CSV 上传到公开仓库。
-- 由于联系方式属于个人信息，建议公开具体联系人、保留期限与删除申请途径。对于公开运营使用，应按实际适用法律和隐私政策进行完善。
-- 每次更改 SQL 权限策略后，先做未登录、普通用户、管理员三类权限验证。
-
-## 本地预览
-
-在项目目录运行 `python3 -m http.server 8080`，打开 `http://localhost:8080/`。未配置 Supabase 时可以预览布局，但无法提交预约。
-
-## 目录
-
-```
-weekend-booking/
-├── index.html               # 访客预约页
-├── admin.html               # 管理员后台
-├── config.js                # Supabase URL 与公开 key（需要配置）
-├── database.sql             # 数据表、RLS、数据库权限
-├── assets/
-│   ├── styles.css
-│   ├── app.js
-│   └── admin.js
-├── .nojekyll
-└── README.md
-```
-
-技术参考：
-- https://supabase.com/docs/guides/database/postgres/row-level-security
-- https://supabase.com/docs/reference/javascript/installing
-- https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site
+本地预览同样连接真实数据库，仅使用明确标记的虚构测试信息并及时清理。免费项目可能受平台暂停策略影响，连接失败时检查 Supabase 控制台健康状态。实际部署验收证据见 `VERIFICATION.md`。
