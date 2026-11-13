@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#f7f4ed">
+  <meta name="description" content="周末出逃计划｜一起出去走走，预约一次好天气。">
+  <title>周末出逃计划 · 一起出去玩</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <script defer src="assets/vendor/supabase-2.119.0.js"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/app.js"></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <a href="./" class="wordmark" aria-label="回到首页"><span class="brand-mark">✳</span> wander<span class="wordmark-period">.</span>club</a>
+      <nav class="top-nav"><span class="nav-tag">周末不宅家俱乐部</span><a href="#book" class="nav-link">立即预约 <span aria-hidden="true">↗</span></a></nav>
+    </header>
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="live-dot"></span> YOUR WEEKEND, YOUR STORY <span class="eyebrow-num">NO. 001</span></div>
+          <h1 id="hero-title">好天气，<br><em>要一起浪费。</em></h1>
+          <p class="intro">想看日落、逛逛小店，还是来一场说走就走的短途旅行？把你的出游想法留在这里，我们找个时间出发。</p>
+          <div class="hero-actions"><a class="primary-cta" href="#book">加入出逃计划 <span aria-hidden="true">↗</span></a><span class="cta-note">不需要做攻略，也可以先报名</span></div>
+          <div class="micro-stats"><div><strong>01</strong><span>填写预约</span></div><i></i><div><strong>02</strong><span>等待联系</span></div><i></i><div><strong>03</strong><span>一起出发</span></div></div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="art-cloud cloud-one"></div><div class="art-cloud cloud-two"></div>
+          <div class="art-sun"></div><div class="art-star star-one">✳</div><div class="art-star star-two">✦</div>
+          <div class="art-landscape"><div class="hill hill-back"></div><div class="hill hill-front"></div><div class="art-path"></div><div class="tiny-flower">✿</div></div>
+          <div class="art-floating note-a">KEEP<br>WANDERING ↗</div>
+          <div class="art-floating note-b">GO OUTSIDE<br>& FEEL ALIVE</div>
+          <div class="art-stamp"><span>WEEKEND</span><b>OUT!</b><span>LET'S GO</span></div>
+        </div>
+      </section>
+      <section class="vibe-strip" aria-label="出游关键词"><span>去山里吹风</span><b>✳</b><span>在城市散步</span><b>✳</b><span>认真看一次日落</span><b>✳</b><span>找家好吃的小店</span><b>✳</b><span>交换有趣的故事</span></section>
+      <section class="booking-section" id="book" aria-labelledby="booking-title">
+        <div class="booking-intro"><span class="section-index">01 / JOIN THE TRIP</span><h2 id="booking-title">下一站，<br><em>和你一起。</em></h2><p>不用拘谨，填一张属于你的出游心愿单。提交之后，发起人会根据你的时间和想法联系你。</p><div class="paper-ticket"><span>ONE TICKET TO SOMEWHERE</span><b>周末出逃通行证</b><small>ADMIT ONE GOOD WEEKEND</small><div class="ticket-dots"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+        <div class="form-card">
+          <div class="form-card-top"><div><span class="form-mini">THE LITTLE APPLICATION</span><h3>出游预约单</h3></div><div class="form-emoji">☀</div></div>
+          <div id="config-alert" class="notice notice-error" role="status" hidden>站点尚未连接数据库，暂时不能接收预约。请联系站点管理员完成配置。</div>
+          <form id="booking-form" novalidate>
+            <div class="field-grid">
+              <label class="field"><span>怎么称呼你 <b>*</b></span><input required maxlength="32" name="nickname" type="text" placeholder="你的昵称 / 名字" autocomplete="nickname"></label>
+              <label class="field"><span>联系方式 <b>*</b></span><select name="contact_method" required><option value="wechat">微信</option><option value="phone">手机号</option><option value="other">其他</option></select></label>
+            </div>
+            <label class="field"><span>联系号码或账号 <b>*</b></span><input required maxlength="100" name="contact" type="text" placeholder="只用于沟通此次出游，不会公开" autocomplete="off"></label>
+            <label class="field"><span>这次想去哪里 <b>*</b></span><input required maxlength="100" name="destination" type="text" placeholder="例如：苏州周边、爬山、咖啡馆…"></label>
+            <div class="field-grid">
+              <label class="field"><span>你方便的日期 <b>*</b></span><input required name="outing_date" type="date"></label>
+              <label class="field"><span>一共几个人 <b>*</b></span><select required name="guest_count"><option value="1">1 人 · 我自己</option><option value="2">2 人</option><option value="3">3 人</option><option value="4">4 人</option><option value="5">5 人</option><option value="6">6 人</option><option value="7">7 人</option><option value="8">8 人</option></select></label>
+            </div>
+            <label class="field"><span>你方便的时间段 <b>*</b></span><select name="time_slot" required><option value="">请选择时间段</option><option value="morning">上午 · 08:00–12:00</option><option value="afternoon">下午 · 12:00–18:00</option><option value="evening">晚上 · 18:00–22:00</option><option value="all_day">全天都可以</option></select></label>
+            <fieldset class="field option-field"><legend>你喜欢哪种出游节奏？</legend><div class="radio-chips"><label><input checked type="radio" name="mood" value="随性漫游"><span>随性漫游</span></label><label><input type="radio" name="mood" value="户外探索"><span>户外探索</span></label><label><input type="radio" name="mood" value="美食探店"><span>美食探店</span></label><label><input type="radio" name="mood" value="都可以"><span>都可以</span></label></div></fieldset>
+            <label class="field"><span>留一句悄悄话 <small>选填</small></span><textarea name="message" rows="3" maxlength="500" placeholder="有什么期待、想法，或者需要提前说明的事情？"></textarea></label>
+            <div class="hidden-honeypot" aria-hidden="true"><label>请留空 <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+            <label class="consent"><input type="checkbox" name="consent" required><span>我同意将以上信息用于本次出游预约与联系，知晓仅管理员可查看，不会公开展示。<b>*</b></span></label>
+            <button type="submit" class="submit-btn" id="submit-btn">发送我的出游邀请 <span aria-hidden="true">↗</span></button>
+            <p class="form-feedback" role="status" aria-live="polite" id="form-feedback"></p>
+            <p class="form-footnote">请勿重复提交同一行程。提交后不会自动扣费或确认行程，最终安排以双方沟通为准。</p>
+          </form>
+          <div id="success-panel" class="success-panel" hidden><div class="success-icon">✓</div><h3>预约已送达！</h3><p>你的出游心愿已经保存成功，发起人会通过填写的联系方式与你沟通。</p><button class="secondary-btn" id="another-booking" type="button">再填一份 ↗</button></div>
+        </div>
+      </section>
+      <section class="closing"><span class="section-index">02 / JUST A REMINDER</span><p>生活不止是周一到周五，<br>还有<em>等待发生的小冒险。</em></p><span class="closing-sparkle">✳</span></section>
+    </main>
+    <footer class="footer"><span>© <span id="year"></span> WANDER.CLUB · MADE FOR GOOD DAYS</span><span>所有预约信息仅管理员可查看 <span class="footer-sep">/</span> <a href="admin.html">管理入口</a></span></footer>
+  </div>
+</body>
+</html>

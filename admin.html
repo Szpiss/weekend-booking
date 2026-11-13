@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#f7f4ed">
+  <title>预约管理后台 · Wander Club</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <script defer src="assets/vendor/supabase-2.119.0.js"></script>
+  <script defer src="config.js"></script>
+  <script defer src="assets/admin.js"></script>
+</head>
+<body class="admin-body">
+  <div class="admin-layout">
+    <header class="admin-header"><a class="wordmark" href="index.html"><span class="brand-mark">✳</span> wander<span class="wordmark-period">.</span>club</a><div class="admin-header-actions"><a href="index.html" class="subtle-link">查看预约页 ↗</a><button type="button" id="logout" class="ghost-btn" hidden>退出登录</button></div></header>
+    <main class="admin-main">
+      <div id="admin-config-alert" class="notice notice-error" hidden>管理员后台尚未配置 Supabase，请按照 README.md 完成数据库连接。</div>
+      <section class="login-wrap" id="login-section"><div class="login-card"><div class="login-art">✳</div><span class="section-index">ADMIN ONLY</span><h1>欢迎回来，<br><em>出游发起人。</em></h1><p>这里是你的私人预约工作台。登录后才能读取真实的访客预约数据。</p><form id="login-form"><label class="field"><span>管理员邮箱</span><input type="email" name="email" required autocomplete="username" placeholder="your@email.com"></label><label class="field"><span>登录密码</span><input type="password" name="password" required autocomplete="current-password" placeholder="输入你的密码"></label><button class="submit-btn" id="login-btn" type="submit">进入管理后台 ↗</button><p class="form-feedback" id="login-feedback" role="status" aria-live="polite"></p></form></div></section>
+      <section id="dashboard" class="dashboard" hidden><div class="dashboard-heading"><div><span class="section-index">YOUR PERSONAL DASHBOARD</span><h1>预约管理 <span class="mini-deco">✳</span></h1><p>看看最近谁想和你一起出去玩。</p></div><button type="button" id="refresh-btn" class="outline-btn">↻ 刷新数据</button></div>
+        <div class="dashboard-stats"><div class="stat"><span>全部预约</span><strong id="stat-all">0</strong><small>ALL REQUESTS</small></div><div class="stat"><span>待处理</span><strong id="stat-pending">0</strong><small>TO DO</small></div><div class="stat"><span>已确认</span><strong id="stat-confirmed">0</strong><small>LET'S GO</small></div><div class="stat"><span>已取消</span><strong id="stat-cancelled">0</strong><small>CANCELLED</small></div></div>
+        <div class="data-card"><div class="data-card-heading"><h2>预约记录 <span class="count-bubble" id="visible-count">0</span></h2><button type="button" id="export-btn" class="outline-btn">↓ 导出 CSV</button></div><div class="filters"><label class="sr-only" for="search-input">搜索预约</label><input type="search" id="search-input" placeholder="搜索昵称、联系方式、目的地…"><label class="sr-only" for="status-filter">筛选预约状态</label><select id="status-filter"><option value="all">全部状态</option><option value="pending">待处理</option><option value="confirmed">已确认</option><option value="cancelled">已取消</option></select><label class="date-filter" for="date-filter">预约日期<input type="date" id="date-filter"></label><button type="button" id="clear-filters" class="ghost-btn">清除筛选</button></div>
+        <p class="form-feedback" id="dashboard-feedback" role="status" aria-live="polite"></p><div class="table-scroller"><table class="booking-table"><thead><tr><th>预约人 / 联系方式</th><th>出游目的地</th><th>日期 / 时间 / 人数</th><th>偏好与留言</th><th>提交时间</th><th>处理状态</th></tr></thead><tbody id="bookings-body"><tr><td colspan="6">登录后显示真实预约数据</td></tr></tbody></table></div><div class="empty-state" id="empty-state" hidden>暂时没有符合条件的预约。</div></div>
+        <details class="password-settings"><summary>修改管理员密码</summary><form id="password-form"><label class="field"><span>新密码（至少 12 位）</span><input name="new_password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><label class="field"><span>再次输入新密码</span><input name="confirm_password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><button type="submit" class="outline-btn">保存新密码</button><p id="password-feedback" class="form-feedback" role="status"></p></form></details><p class="dashboard-privacy">隐私提醒：预约信息包含联系方式。请勿将导出的 CSV 上传到公开仓库或转发给无关人员。</p>
+      </section>
+    </main><footer class="footer"><span>© <span id="year"></span> WANDER.CLUB</span><span>PRIVATE ADMIN PANEL</span></footer>
+  </div>
+</body>
+</html>
